@@ -4,12 +4,13 @@ import (
 	"os"
 	"fmt"
 	"bufio"
-	"github.com/kubernetes/staging/src/k8s.io/apimachinery/pkg/util/json"
 	"io"
 	"regexp"
 			"strconv"
-	"github.com/codis/pkg/utils/math2"
 	"sort"
+	"encoding/json"
+	"time"
+		"path/filepath"
 )
 
 type Label struct {
@@ -50,90 +51,121 @@ var redirectCount	int
 var pathCounnt 		int
 
 func main() {
+	//init
 	mPath = make(map[string]int)
 	pathCounnt = 0
 	redirectCount = 0
 
-	jsonFile, err := os.Open("D:\\GoProject\\src\\github.com\\HelloChenHZ\\logAnalysis\\S0.json")
-	if err != nil {
-		fmt.Println(err)
+	//download api log files
+	now := time.Now()
+	fmt.Println("year is ", now.Year(), " month is ", int(now.Month()), " hour is ", now.Hour())
+	year := strconv.Itoa(now.Year())
+	month := strconv.Itoa(int(now.Month()))
+	day := strconv.Itoa(now.Day())
+	if now.Month() < 10 {
+		month = "0"+month
 	}
-	defer jsonFile.Close()
 
-	read := bufio.NewReader(jsonFile)
-	countN := 0
-	var log Log
-	for {
-		//line, isPrefix, err := read.ReadLine()
-		line, _, err := read.ReadLine()
-		if err == io.EOF {
-			break
+	if now.Day() < 10 {
+		day = "0" + day
+	}
+
+	//traversing files
+	//exec.Command("gsutil ","cp -r gs://crash_log_unix_io/api-v2-master/", year, "/", month, "/", day, " ./")
+	fmt.Println("command is sutil cp -r gs://crash_log_unix_io/api-v2-master/", year, "/", month, "/", day, " ./")
+	dir := "/home/bitmart/"+day
+	_ = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error{
+		if err != nil {
+			return err
 		}
 
+		if info.IsDir() {
+			return filepath.SkipDir
+		}
+
+		fmt.Println("visit file /home/bitmart/",day,info.Name())
+		jsonFile, err := os.Open("/home/bitmart/"+day+"/"+info.Name())
 		if err != nil {
 			fmt.Println(err)
-			continue
 		}
+		defer jsonFile.Close()
 
-		json.Unmarshal(line, &log)
-		//fmt.Printf("%v th log  is %v and isPrefix is %v\n", countN, log.TextPayLoad, isPrefix)
-		countN ++
-
-		if countN > 100 {
-			break
-		}
-
-		re :=  regexp.MustCompile(`redirect`)
-		exist := re.Match([]byte(log.TextPayLoad))
-		if exist {
-			redirectCount ++
-		} else{
-			reg := regexp.MustCompile(`Path.*?,`)
-			path := reg.FindAllStringSubmatch(log.TextPayLoad, 1)
-			reg = regexp.MustCompile(`End.*?（`)
-			costTime := reg.FindAllStringSubmatch(log.TextPayLoad, 1)
-			//fmt.Println(path)
-			//fmt.Println(costTime)
-			//fmt.Println(reflect.TypeOf(costTime[0][0][5: len(costTime[0][0])-3]))
-			if len(path) < 1 || len(costTime) < 1 || len(path[0]) < 1 || len(costTime[0]) < 1 ||  len(path[0][0]) < 7 || len(costTime[0][0]) < 8 {
-				continue
+		read := bufio.NewReader(jsonFile)
+		countN := 0
+		var log Log
+		for {
+			//line, isPrefix, err := read.ReadLine()
+			line, _, err := read.ReadLine()
+			if err == io.EOF {
+				break
 			}
 
-			costTimeInt, err := strconv.Atoi(costTime[0][0][5: len(costTime[0][0])-3])
 			if err != nil {
+				fmt.Println(err)
 				continue
 			}
 
-			//pathString := path[0][0][6: len(path[0][0])-1]
-			//fmt.Println("tyep of pathString is ", reflect.TypeOf(pathString))
-			index, ok := mPath[path[0][0][6: len(path[0][0])-1]]
-			if ok {
-				records[index].costTimes = append(records[index].costTimes, costTimeInt)
-				records[index].countN ++
-				records[index].maxCostTime = math2.MaxInt(costTimeInt, records[index].maxCostTime)
-				records[index].minCostTime = math2.MinInt(costTimeInt, records[index].minCostTime)
+			json.Unmarshal(line, &log)
+			countN ++
 
-			}else{
-
-				record := Record{1, costTimeInt, costTimeInt,  [] int{1},path[0][0][6: len(path[0][0])-1]}
-				records = append(records, record)
-				mPath[path[0][0][6: len(path[0][0])-1]] = pathCounnt
-				pathCounnt++
+			if countN > 1000 {
+				break
 			}
-			//fmt.Println(path[0][0][6: len(path[0][0])-1])
-			//fmt.Println(costTime[0][0][5: len(costTime[0][0])-3])
-		}
-	}
 
-	fmt.Println("接口地址																									次数			最大时间			最小时间			平均时间			最小时间")
+			re := regexp.MustCompile(`redirect`)
+			exist := re.Match([]byte(log.TextPayLoad))
+			if exist {
+				redirectCount ++
+			} else {
+				reg := regexp.MustCompile(`Path.*?,`)
+				path := reg.FindAllStringSubmatch(log.TextPayLoad, 1)
+				reg = regexp.MustCompile(`End.*?（`)
+				costTime := reg.FindAllStringSubmatch(log.TextPayLoad, 1)
+				//fmt.Println(path)
+				//fmt.Println(costTime)
+				//fmt.Println(reflect.TypeOf(costTime[0][0][5: len(costTime[0][0])-3]))
+				if len(path) < 1 || len(costTime) < 1 || len(path[0]) < 1 || len(costTime[0]) < 1 || len(path[0][0]) < 7 || len(costTime[0][0]) < 8 {
+					continue
+				}
+
+				costTimeInt, err := strconv.Atoi(costTime[0][0][5 : len(costTime[0][0])-3])
+				if err != nil {
+					continue
+				}
+
+				index, ok := mPath[path[0][0][6:len(path[0][0])-1]]
+				if ok {
+					records[index].costTimes = append(records[index].costTimes, costTimeInt)
+					records[index].countN ++
+					if costTimeInt > records[index].maxCostTime {
+						records[index].maxCostTime = costTimeInt
+					}
+
+					if costTimeInt < records[index].minCostTime {
+						records[index].minCostTime = costTimeInt
+					}
+
+				} else {
+
+					record := Record{1, costTimeInt, costTimeInt, [] int{1}, path[0][0][6 : len(path[0][0])-1]}
+					records = append(records, record)
+					mPath[path[0][0][6:len(path[0][0])-1]] = pathCounnt
+					pathCounnt++
+				}
+			}
+		}
+
+		return nil
+	})
+
+	fmt.Println("接口地址																					次数		最大时间		最小时间		平均时间		最小时间")
 	for _, record := range records {
 		sort.Ints(record.costTimes)
 		totalTime := 0
 		for _, recordCostTime := range record.costTimes {
 			totalTime = totalTime + recordCostTime
 		}
-		fmt.Printf("%100v			%v			%v			%v			%v			%v\n", record.path, record.countN, record.maxCostTime, record.minCostTime, totalTime/record.countN, record.costTimes[len(record.costTimes)/2])
-		//fmt.Println(record.path, "						", record.countN, "			", record.maxCostTime, "			", record.minCostTime, "			", totalTime/record.countN, "			", record.costTimes[len(record.costTimes)/2])
+		fmt.Printf("%80v			%4v			%4v			%4v			%4v			%4v\n", record.path, record.countN, record.maxCostTime, record.minCostTime, totalTime/record.countN, record.costTimes[len(record.costTimes)/2])
 	}
 	fmt.Println("redirect count is ", redirectCount)
 }
