@@ -72,21 +72,25 @@ func main() {
 
 	//traversing files
 	//exec.Command("gsutil ","cp -r gs://crash_log_unix_io/api-v2-master/", year, "/", month, "/", day, " ./")
-	fmt.Println("command is sutil cp -r gs://crash_log_unix_io/api-v2-master/", year, "/", month, "/", day, " ./")
-	dir := "/home/bitmart/"+day
+	fmt.Println("command is gsutil cp -r gs://crash_log_unix_io/api-v2-master/", year, "/", month, "/", day, " ./")
+	dir := "/home/bitmart/log/"+day
+	fmt.Println("dir is ",dir)
 	_ = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error{
 		if err != nil {
+			fmt.Println("walk err is ", err)
 			return err
 		}
 
 		if info.IsDir() {
-			return filepath.SkipDir
+			fmt.Println("info is Dir")
+			return nil
 		}
 
-		fmt.Println("visit file /home/bitmart/",day,info.Name())
-		jsonFile, err := os.Open("/home/bitmart/"+day+"/"+info.Name())
+		fmt.Println("visit file /home/bitmart/", day, "/", info.Name())
+		jsonFile, err := os.Open("/home/bitmart/log/"+day+"/"+info.Name())
 		if err != nil {
 			fmt.Println(err)
+			return nil
 		}
 		defer jsonFile.Close()
 
