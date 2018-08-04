@@ -58,8 +58,7 @@ func main() {
 
 	//download api log files
 	now := time.Now()
-	fmt.Println("year is ", now.Year(), " month is ", int(now.Month()), " hour is ", now.Hour())
-	year := strconv.Itoa(now.Year())
+	fmt.Println("year is ", now.Year(), " month is ", int(now.Month()), " day is ", now.Day())
 	month := strconv.Itoa(int(now.Month()))
 	day := strconv.Itoa(now.Day())
 	if now.Month() < 10 {
@@ -71,8 +70,6 @@ func main() {
 	}
 
 	//traversing files
-	//exec.Command("gsutil ","cp -r gs://crash_log_unix_io/api-v2-master/", year, "/", month, "/", day, " ./")
-	fmt.Println("command is gsutil cp -r gs://crash_log_unix_io/api-v2-master/", year, "/", month, "/", day, " ./")
 	dir := "/home/bitmart/log/"+day
 	fmt.Println("dir is ",dir)
 	_ = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error{
@@ -162,7 +159,7 @@ func main() {
 		return nil
 	})
 
-	fmt.Println("接口地址																					次数		最大时间		最小时间		平均时间		最小时间")
+	fmt.Println("接口地址																					次数		最大时间		最小时间		平均时间		中位数时间")
 	for _, record := range records {
 		sort.Ints(record.costTimes)
 		totalTime := 0
